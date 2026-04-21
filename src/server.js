@@ -297,6 +297,116 @@
 
 
 
+///// 21 Apr Backup /////
+
+// require("dotenv").config();
+
+// const app = require("./app");
+// const db = require("../models");
+
+// const PORT = process.env.PORT || 5000;
+
+// (async () => {
+//   try {
+//     await db.sequelize.authenticate();
+//     console.log("✔ DB connected");
+
+//     // ✅ Ensure isActive column in technicians
+//     await db.sequelize.query(`
+//       ALTER TABLE "technicians"
+//       ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
+//     `);
+//     console.log("✔ isActive column ensured");
+
+//     // ✅ Ensure payment_status column
+//     await db.sequelize.query(`
+//       ALTER TABLE "service_on_booking"
+//       ADD COLUMN IF NOT EXISTS "payment_status" VARCHAR(20) DEFAULT 'INITIATED';
+//     `);
+//     console.log("✔ payment_status column ensured");
+
+//     // ✅ Ensure type column in password_resets
+//     await db.sequelize.query(`
+//       ALTER TABLE "password_resets"
+//       ADD COLUMN IF NOT EXISTS "type" VARCHAR(50) DEFAULT 'FORGOT_PASSWORD';
+//     `);
+//     console.log("✔ type column ensured in password_resets");
+
+//     // ================================
+//     // ✅ ENUM FIX (IMPORTANT 🔥)
+//     // ================================
+
+//     // ✅ Ensure WITHDRAW exists
+//     await db.sequelize.query(`
+//       DO $$
+//       BEGIN
+//         IF NOT EXISTS (
+//           SELECT 1 FROM pg_enum 
+//           WHERE enumlabel = 'WITHDRAW'
+//           AND enumtypid = (
+//             SELECT oid FROM pg_type WHERE typname = 'enum_wallet_transactions_source'
+//           )
+//         ) THEN
+//           ALTER TYPE "enum_wallet_transactions_source" ADD VALUE 'WITHDRAW';
+//         END IF;
+//       END$$;
+//     `);
+//     console.log("✔ WITHDRAW enum ensured");
+
+//     // ✅ Ensure COMMISSION exists
+//     await db.sequelize.query(`
+//       DO $$
+//       BEGIN
+//         IF NOT EXISTS (
+//           SELECT 1 FROM pg_enum 
+//           WHERE enumlabel = 'COMMISSION'
+//           AND enumtypid = (
+//             SELECT oid FROM pg_type WHERE typname = 'enum_wallet_transactions_source'
+//           )
+//         ) THEN
+//           ALTER TYPE "enum_wallet_transactions_source" ADD VALUE 'COMMISSION';
+//         END IF;
+//       END$$;
+//     `);
+//     console.log("✔ COMMISSION enum ensured");
+
+//     // ================================
+//     // 🔥 FIX ORDER_ID UNIQUE ISSUE
+//     // ================================
+
+//     await db.sequelize.query(`
+//       DO $$
+//       BEGIN
+//         IF EXISTS (
+//           SELECT 1 FROM pg_constraint 
+//           WHERE conname = 'service_on_booking_order_id_key'
+//         ) THEN
+//           ALTER TABLE "service_on_booking"
+//           DROP CONSTRAINT "service_on_booking_order_id_key";
+//         END IF;
+//       END$$;
+//     `);
+//     console.log("✔ order_id unique constraint removed");
+
+//     // ================================
+//     // ✅ Sync models
+//     // ================================
+//     await db.sequelize.sync();
+//     console.log("✔ Models synchronized");
+//   } catch (err) {
+//     console.error("✖ Unable to start server:", err);
+//   }
+
+//   app.listen(PORT, () => {
+//     console.log(`🚀 Server running on port ${PORT}`);
+//   });
+// })();
+
+
+
+
+
+
 
 
 require("dotenv").config();
@@ -306,37 +416,56 @@ const db = require("../models");
 
 const PORT = process.env.PORT || 5000;
 
+// 🔥 Toggle this ONLY for first deploy
+const IS_FIRST_DEPLOY = true;
+
 (async () => {
   try {
+    // ✅ Connect DB
     await db.sequelize.authenticate();
     console.log("✔ DB connected");
 
-    // ✅ Ensure isActive column in technicians
+    // ================================
+    // ✅ STEP 1: CREATE TABLES FIRST
+    // ================================
+    if (IS_FIRST_DEPLOY) {
+      await db.sequelize.sync({ force: true }); // 🔥 creates all tables fresh
+      console.log("✔ Tables created (force sync)");
+    } else {
+      await db.sequelize.sync(); // normal sync
+      console.log("✔ Models synchronized");
+    }
+
+    // ================================
+    // ✅ STEP 2: SAFE ALTER QUERIES
+    // ================================
+
+    // technicians.isActive
     await db.sequelize.query(`
       ALTER TABLE "technicians"
       ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
     `);
     console.log("✔ isActive column ensured");
 
-    // ✅ Ensure payment_status column
+    // service_on_booking.payment_status
     await db.sequelize.query(`
       ALTER TABLE "service_on_booking"
       ADD COLUMN IF NOT EXISTS "payment_status" VARCHAR(20) DEFAULT 'INITIATED';
     `);
     console.log("✔ payment_status column ensured");
 
-    // ✅ Ensure type column in password_resets
+    // password_resets.type
     await db.sequelize.query(`
       ALTER TABLE "password_resets"
       ADD COLUMN IF NOT EXISTS "type" VARCHAR(50) DEFAULT 'FORGOT_PASSWORD';
     `);
-    console.log("✔ type column ensured in password_resets");
+    console.log("✔ type column ensured");
 
     // ================================
-    // ✅ ENUM FIX (IMPORTANT 🔥)
+    // ✅ ENUM FIXES
     // ================================
 
-    // ✅ Ensure WITHDRAW exists
+    // WITHDRAW
     await db.sequelize.query(`
       DO $$
       BEGIN
@@ -353,7 +482,7 @@ const PORT = process.env.PORT || 5000;
     `);
     console.log("✔ WITHDRAW enum ensured");
 
-    // ✅ Ensure COMMISSION exists
+    // COMMISSION
     await db.sequelize.query(`
       DO $$
       BEGIN
@@ -371,9 +500,8 @@ const PORT = process.env.PORT || 5000;
     console.log("✔ COMMISSION enum ensured");
 
     // ================================
-    // 🔥 FIX ORDER_ID UNIQUE ISSUE
+    // ✅ REMOVE UNIQUE CONSTRAINT
     // ================================
-
     await db.sequelize.query(`
       DO $$
       BEGIN
@@ -386,18 +514,16 @@ const PORT = process.env.PORT || 5000;
         END IF;
       END$$;
     `);
-    console.log("✔ order_id unique constraint removed");
+    console.log("✔ order_id constraint removed");
 
     // ================================
-    // ✅ Sync models
+    // 🚀 START SERVER
     // ================================
-    await db.sequelize.sync();
-    console.log("✔ Models synchronized");
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
   } catch (err) {
     console.error("✖ Unable to start server:", err);
+    process.exit(1);
   }
-
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
 })();
