@@ -41,7 +41,7 @@ const swaggerOptions = {
     servers: [
       { url: "http://localhost:4000/api", description: "Local Server" },
       {
-        url: "https://bhs-backend-ou0m.onrender.com/api",
+        url: "https://bhs-backend-production.onrender.com/api",
         description: "Production Server",
       },
     ],
