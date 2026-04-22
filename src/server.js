@@ -408,16 +408,12 @@
 
 
 
-
 require("dotenv").config();
 
 const app = require("./app");
 const db = require("../models");
 
 const PORT = process.env.PORT || 5000;
-
-// 🔥 Toggle this ONLY for first deploy
-const IS_FIRST_DEPLOY = true;
 
 (async () => {
   try {
@@ -426,46 +422,40 @@ const IS_FIRST_DEPLOY = true;
     console.log("✔ DB connected");
 
     // ================================
-    // ✅ STEP 1: CREATE TABLES FIRST
+    // ✅ SAFE SYNC (NO DATA LOSS)
     // ================================
-    if (IS_FIRST_DEPLOY) {
-      await db.sequelize.sync({ force: true }); // 🔥 creates all tables fresh
-      console.log("✔ Tables created (force sync)");
-    } else {
-      await db.sequelize.sync(); // normal sync
-      console.log("✔ Models synchronized");
-    }
+    await db.sequelize.sync({
+      force: false, // ❌ NEVER true in production
+      alter: false, // optional (can set true locally only)
+    });
+
+    console.log("✔ Models synchronized");
 
     // ================================
-    // ✅ STEP 2: SAFE ALTER QUERIES
+    // ✅ SAFE ALTER QUERIES
     // ================================
 
-    // technicians.isActive
     await db.sequelize.query(`
       ALTER TABLE "technicians"
       ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
     `);
-    console.log("✔ isActive column ensured");
 
-    // service_on_booking.payment_status
     await db.sequelize.query(`
       ALTER TABLE "service_on_booking"
       ADD COLUMN IF NOT EXISTS "payment_status" VARCHAR(20) DEFAULT 'INITIATED';
     `);
-    console.log("✔ payment_status column ensured");
 
-    // password_resets.type
     await db.sequelize.query(`
       ALTER TABLE "password_resets"
       ADD COLUMN IF NOT EXISTS "type" VARCHAR(50) DEFAULT 'FORGOT_PASSWORD';
     `);
-    console.log("✔ type column ensured");
+
+    console.log("✔ Columns ensured");
 
     // ================================
     // ✅ ENUM FIXES
     // ================================
 
-    // WITHDRAW
     await db.sequelize.query(`
       DO $$
       BEGIN
@@ -480,9 +470,7 @@ const IS_FIRST_DEPLOY = true;
         END IF;
       END$$;
     `);
-    console.log("✔ WITHDRAW enum ensured");
 
-    // COMMISSION
     await db.sequelize.query(`
       DO $$
       BEGIN
@@ -497,7 +485,8 @@ const IS_FIRST_DEPLOY = true;
         END IF;
       END$$;
     `);
-    console.log("✔ COMMISSION enum ensured");
+
+    console.log("✔ Enums ensured");
 
     // ================================
     // ✅ REMOVE UNIQUE CONSTRAINT
@@ -514,7 +503,8 @@ const IS_FIRST_DEPLOY = true;
         END IF;
       END$$;
     `);
-    console.log("✔ order_id constraint removed");
+
+    console.log("✔ Constraint fixed");
 
     // ================================
     // 🚀 START SERVER
